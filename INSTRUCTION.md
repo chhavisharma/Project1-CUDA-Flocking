@@ -1,7 +1,7 @@
 CUDA Introduction - Flocking
 ============================
 
-This is due Sunday, September 9.
+This is due Sunday, September 8.
 
 **Summary:** In this project, you will get some real experience writing simple
 CUDA kernels, using them, and analyzing their performance. You'll implement a
@@ -86,7 +86,7 @@ function rule1(Boid boid)
         endif
     end
 
-    perceived_center /= N-1
+    perceived_center /= number_of_neighbors
 
     return (perceived_center - boid.position) * rule1Scale
 end
@@ -122,7 +122,7 @@ function rule3(Boid boid)
         endif
     end
 
-    perceived_velocity /= N-1
+    perceived_velocity /= number_of_neighbors
 
     return perceived_velocity * rule3Scale
 end
