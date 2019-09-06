@@ -408,7 +408,7 @@ __global__ void kernUpdateVelNeighborSearchScattered(
 	if (iSelf < N) {
 		
 		// - Identify the grid cell that this particle is in
-		glm::vec3 gird3Didx = (int)(glm::floor(pos[iSelf] * inverseCellWidth) - gridMin);
+		glm::vec3 gird3Didx = glm::floor(pos[iSelf] * inverseCellWidth) - gridMin;
 
 		// Variables to hold accumulated vel per rule
 		glm::vec3 pCenter(0.0f, 0.0f, 0.0f);
@@ -523,7 +523,6 @@ void Boids::stepSimulationScatteredGrid(float dt) {
 	// In Parallel:
 	// - label each particle with its array index as well as its grid index.
 	//   Use 2x width grids.
-
 	cudaMalloc((void**)&dev_particleGridIndices, N * sizeof(int));
 	checkCUDAErrorWithLine("cudaMalloc dev_intKeys failed!");
 
@@ -532,35 +531,17 @@ void Boids::stepSimulationScatteredGrid(float dt) {
 
 	dim3 fullBlocksPerGrid((N + blockSize - 1) / blockSize);
 
-	kernComputeIndices << < fullBlocksPerGrid, blockSize >> > (N, gridSideCount, halfGridWidth, 
-						gridInverseCellWidth, dev_pos, dev_particleArrayIndices, dev_particleGridIndices);
+	kernComputeIndices <<< fullBlocksPerGrid, blockSize >>> (N, gridSideCount, gridMinimum,
+					   gridInverseCellWidth, dev_pos, dev_particleArrayIndices, dev_particleGridIndices);
 	checkCUDAErrorWithLine("kernComputeIndices failed!");
 
-	//std::cout << "before unstable sort: " << std::endl;
-	//for (int i = 0; i < N; i++) {
-	//	std::cout << "  key: " << dev_particleGridIndices[i];
-	//	std::cout << " value: " << dev_particleArrayIndices[i] << std::endl;
-	//}
-
 	// - Unstable key sort using Thrust. 
-
 	// Wrap device vectors in thrust iterators for use with thrust.
 	dev_thrust_particleGridIndices = thrust::device_pointer_cast(dev_particleGridIndices);
 	dev_thrust_particleArrayIndices = thrust::device_pointer_cast(dev_particleArrayIndices);
 	
 	// LOOK-2.1 Example for using thrust::sort_by_key
 	thrust::sort_by_key(dev_thrust_particleGridIndices, dev_thrust_particleGridIndices + N, dev_thrust_particleArrayIndices);
-
-	// How to copy data back to the CPU side from the GPU
-	//cudaMemcpy(intKeys.get(), dev_intKeys, sizeof(int) * N, cudaMemcpyDeviceToHost);
-	//cudaMemcpy(intValues.get(), dev_intValues, sizeof(int) * N, cudaMemcpyDeviceToHost);
-	//checkCUDAErrorWithLine("memcpy back failed!");
-
-	//std::cout << "after unstable sort: " << std::endl;
-	//for (int i = 0; i < N; i++) {
-	//	std::cout << "  key: " << intKeys[i];
-	//	std::cout << " value: " << intValues[i] << std::endl;
-	//}
 
 	kernResetIntBuffer << < fullBlocksPerGrid, blockSize >> > (N, dev_gridCellStartIndices,-1);
 	checkCUDAErrorWithLine("kernResetIntBuffer for dev_gridCellStartIndices failed!");
@@ -570,15 +551,15 @@ void Boids::stepSimulationScatteredGrid(float dt) {
 
 	// - Naively unroll the loop for finding the start and end indices of each
 	//   cell's data pointers in the array of boid indices
-	kernIdentifyCellStartEnd << < fullBlocksPerGrid, blockSize >> > (N, dev_particleGridIndices, 
-									dev_gridCellStartIndices, dev_gridCellEndIndices);
+	kernIdentifyCellStartEnd <<< fullBlocksPerGrid, blockSize >> > (N, dev_particleGridIndices, 
+								dev_gridCellStartIndices, dev_gridCellEndIndices);
 	checkCUDAErrorWithLine("kernIdentifyCellStartEnd failed!");
 	  
 	// - Update positions
-	kernUpdateVelNeighborSearchScattered <<< fullBlocksPerGrid, blockSize >> > (N, gridSideCount, halfGridWidth,
-		gridInverseCellWidth, gridCellWidth, dev_gridCellStartIndices, dev_gridCellEndIndices, dev_particleArrayIndices);
+	kernUpdateVelNeighborSearchScattered <<< fullBlocksPerGrid, blockSize >> > (N, gridSideCount, gridMinimum,
+		gridInverseCellWidth, gridCellWidth, dev_gridCellStartIndices, dev_gridCellEndIndices, dev_particleArrayIndices,
+		dev_pos, dev_vel1, dev_vel2);
 	checkCUDAErrorWithLine("kernUpdateVelNeighborSearchScattered failed!");
-
 
 	// - Ping-pong buffers as needed
 	dev_vel1 = dev_vel2;
