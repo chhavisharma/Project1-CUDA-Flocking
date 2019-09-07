@@ -1,9 +1,9 @@
 **University of Pennsylvania, CIS 565: GPU Programming and Architecture,
 Project 1 - Flocking**
 
-* (TODO) YOUR NAME HERE
-  * (TODO) [LinkedIn](), [personal website](), [twitter](), etc.
-* Tested on: (TODO) Windows 22, i7-2222 @ 2.22GHz 22GB, GTX 222 222MB (Moore 2222 Lab)
+* Author: Chhavi Sharma
+  * [LinkedIn](https://www.linkedin.com/in/chhavi275/), [personal website](https://www.grasp.upenn.edu/people/chhavi-sharma)
+* Tested on: Windows 10, Intel Xeon CPU E5-2687W v3 @ 3.10GHz 22GB, NVIDIA TITAN V 12GB (SIGLab-VR1)
 
 ### (TODO: Your README)
 
