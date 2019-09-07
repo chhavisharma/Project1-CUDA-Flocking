@@ -86,6 +86,8 @@ int *dev_gridCellEndIndices;   // to this cell?
 
 // TODO-2.3 - consider what additional buffers you might need to reshuffle
 // the position and velocity data to be coherent within cells.
+glm::vec3 *dev_pos_shuffle;
+glm::vec3 *dev_vel1_shuffle;
 
 // LOOK-2.1 - Grid parameters based on simulation parameters.
 // These are automatically computed for you in Boids::initSimulation
@@ -184,6 +186,12 @@ void Boids::initSimulation(int N) {
 
   dev_thrust_particleGridIndices = thrust::device_pointer_cast<int>(dev_particleGridIndices);
   dev_thrust_particleArrayIndices = thrust::device_pointer_cast<int>(dev_particleArrayIndices);
+
+  cudaMalloc((void**)&dev_pos_shuffle, N * sizeof(glm::vec3));
+  checkCUDAErrorWithLine("cudaMalloc dev_pos_shuffle failed!");
+
+  cudaMalloc((void**)&dev_vel1_shuffle, N * sizeof(glm::vec3));
+  checkCUDAErrorWithLine("cudaMalloc dev_vel1_shuffle failed!");
 
   cudaDeviceSynchronize();
 }
@@ -520,7 +528,100 @@ __global__ void kernUpdateVelNeighborSearchCoherent(
   // - Access each boid in the cell and compute velocity change from
   //   the boids rules, if this boid is within the neighborhood distance.
   // - Clamp the speed change before putting the new speed in vel2
+
+	int iSelf = (blockIdx.x * blockDim.x) + threadIdx.x;
+
+	if (iSelf < N) {
+		glm::vec3 gird3Didx = glm::floor((pos[iSelf] - gridMin) * inverseCellWidth);
+
+		glm::vec3 pCenter(0.0f, 0.0f, 0.0f);
+		glm::vec3 pVel(0.0f, 0.0f, 0.0f);
+		glm::vec3 pDist(0.0f, 0.0f, 0.0f);
+
+		int cnt_pCenter = 0;
+		int cnt_pVel = 0;
+
+		int x_lim = (int)gird3Didx.x, int y_lim = (int)gird3Didx.y, int z_lim = (int)gird3Didx.z;
+
+		for (int x = x_lim - 1; x <= x_lim + 1; x++) {
+			for (int y = y_lim - 1; y <= y_lim + 1; y++) {
+				for (int z = z_lim - 1; z <= z_lim + 1; z++) {
+					if (x >= 0 && y >= 0 && z >= 0 && x < gridResolution && y < gridResolution && z < gridResolution) {
+
+						// - For each cell, read the start/end indices in the boid pointer array.
+						int grid1Didx = gridIndex3Dto1D(x, y, z, gridResolution);
+						int strt_idx = gridCellStartIndices[grid1Didx];
+						int end_idx = gridCellEndIndices[grid1Didx];
+
+						if (strt_idx == -1 || end_idx == -1 ) continue;
+
+						for (int b = strt_idx; b <= end_idx; b++) {
+
+							// Rule 1: boids fly towards their local perceived center of mass, which excludes themselves
+							if (b != iSelf && glm::distance(pos[b], pos[iSelf]) < rule1Distance) {
+								pCenter += pos[b];
+								cnt_pCenter += 1;
+							}
+
+							// Rule 2: boids try to stay a distance d away from each other
+							if (b != iSelf && glm::distance(pos[b], pos[iSelf]) < rule2Distance) {
+								pDist -= (pos[b] - pos[iSelf]);
+							}
+
+							// Rule 3: boids try to match the speed of surrounding boids
+							if (b != iSelf && glm::distance(pos[b], pos[iSelf]) < rule3Distance) {
+								pVel += vel1[b];
+								cnt_pVel += 1;
+							}
+						}
+					}
+				}
+			}
+		}
+
+		// Accumulated Avg
+		if (cnt_pCenter != 0) {
+			pCenter /= cnt_pCenter;
+			pCenter = (pCenter - pos[iSelf])*rule1Scale;
+		}
+
+		pDist = pDist * rule2Scale;
+
+		if (cnt_pVel != 0) {
+			pVel /= cnt_pVel;
+			pVel = pVel * rule3Scale;
+		}
+
+		// - Clamp the speed change before putting the new speed in vel2
+		vel2[iSelf] = pCenter + pDist + pVel + vel1[iSelf];
+		vel2[iSelf] = glm::clamp(vel2[iSelf], -maxSpeed, maxSpeed);
+	}
 }
+
+__global__ void kernShuffleVelPosCoherent(
+	int N, int *particleArrayIndices,
+	glm::vec3 *pos, glm::vec3 *vel1,
+	glm::vec3 *pos_shuffle, glm::vec3 *vel1_shuffle) {
+	
+	int iSelf = (blockIdx.x * blockDim.x) + threadIdx.x;
+
+	if (iSelf < N) {
+		pos_shuffle[iSelf] = pos[particleArrayIndices[iSelf]];
+		vel1_shuffle[iSelf] = vel1[particleArrayIndices[iSelf]];
+		}
+}
+
+__global__ void kernUnShuffleVelPosCoherent(
+	int N, int *particleArrayIndices,
+	glm::vec3 *pos, glm::vec3 *vel1, glm::vec3 *vel2_shuffle) {
+	
+	int iSelf = (blockIdx.x * blockDim.x) + threadIdx.x;
+
+	if (iSelf < N) {
+		vel1[particleArrayIndices[iSelf]] = vel2_shuffle[iSelf];
+	}
+}
+
 
 /**
 * Step the entire N-body simulation by `dt` seconds.
@@ -584,21 +685,59 @@ void Boids::stepSimulationScatteredGrid(float dt) {
 }
 
 void Boids::stepSimulationCoherentGrid(float dt) {
-  // TODO-2.3 - start by copying Boids::stepSimulationNaiveGrid
-  // Uniform Grid Neighbor search using Thrust sort on cell-coherent data.
-  // In Parallel:
-  // - Label each particle with its array index as well as its grid index.
-  //   Use 2x width grids
-  // - Unstable key sort using Thrust. A stable sort isn't necessary, but you
-  //   are welcome to do a performance comparison.
-  // - Naively unroll the loop for finding the start and end indices of each
-  //   cell's data pointers in the array of boid indices
-  // - BIG DIFFERENCE: use the rearranged array index buffer to reshuffle all
-  //   the particle data in the simulation array.
-  //   CONSIDER WHAT ADDITIONAL BUFFERS YOU NEED
-  // - Perform velocity updates using neighbor search
-  // - Update positions
-  // - Ping-pong buffers as needed. THIS MAY BE DIFFERENT FROM BEFORE.
+	// TODO-2.3 - start by copying Boids::stepSimulationNaiveGrid
+  
+	// Uniform Grid Neighbor search using Thrust sort on cell-coherent data.
+  
+	// In Parallel:
+	// - Label each particle with its array index as well as its grid index.
+	//   Use 2x width grids
+	// - Unstable key sort using Thrust. A stable sort isn't necessary, but you
+	//   are welcome to do a performance comparison.
+	// - Naively unroll the loop for finding the start and end indices of each
+	//   cell's data pointers in the array of boid indices
+	// - BIG DIFFERENCE: use the rearranged array index buffer to reshuffle all
+	//   the particle data in the simulation array.
+	//   CONSIDER WHAT ADDITIONAL BUFFERS YOU NEED
+	// - Perform velocity updates using neighbor search
+	// - Update positions
+	// - Ping-pong buffers as needed. THIS MAY BE DIFFERENT FROM BEFORE.
+	
+	int N = numObjects;
+
+	dim3 fullBlocksPerGrid((N + blockSize - 1) / blockSize);
+	dim3 cellBlocks((gridCellCount + blockSize - 1) / blockSize);
+
+	kernResetIntBuffer << < cellBlocks, blockSize >> > (gridCellCount, dev_gridCellStartIndices, -1);
+	checkCUDAErrorWithLine("kernResetIntBuffer for dev_gridCellStartIndices failed!");
+
+	kernResetIntBuffer << < cellBlocks, blockSize >> > (gridCellCount, dev_gridCellEndIndices, -1);
+	checkCUDAErrorWithLine("kernResetIntBuffer for dev_gridCellEndIndices failed!");
+
+	kernComputeIndices << < fullBlocksPerGrid, blockSize >> > (N, gridSideCount, gridMinimum, gridInverseCellWidth,
+		dev_pos, dev_particleArrayIndices, dev_particleGridIndices);
+	checkCUDAErrorWithLine("kernComputeIndices failed!");
+
+	thrust::sort_by_key(dev_thrust_particleGridIndices, dev_thrust_particleGridIndices + N, dev_thrust_particleArrayIndices);
+
+	kernShuffleVelPosCoherent <<< fullBlocksPerGrid, blockSize >>> (N, dev_particleArrayIndices,
+			dev_pos, dev_vel1, dev_pos_shuffle, dev_vel1_shuffle);
+
+	kernIdentifyCellStartEnd << < fullBlocksPerGrid, blockSize >> > (N, dev_particleGridIndices,
+		dev_gridCellStartIndices, dev_gridCellEndIndices);
+	checkCUDAErrorWithLine("kernIdentifyCellStartEnd failed!");
+
+	kernUpdateVelNeighborSearchCoherent <<< fullBlocksPerGrid, blockSize >> > (N, gridSideCount, gridMinimum,
+		gridInverseCellWidth, gridCellWidth,
+		dev_gridCellStartIndices, dev_gridCellEndIndices,
+		dev_pos_shuffle, dev_vel1_shuffle, dev_vel2);
+	checkCUDAErrorWithLine("kernUpdateVelNeighborSearchScattered failed!");
+
+	kernUnShuffleVelPosCoherent<<<fullBlocksPerGrid, blockSize >>> (N, dev_particleArrayIndices,
+		dev_pos, dev_vel1, dev_vel2);
+
+	kernUpdatePos << < fullBlocksPerGrid, blockSize >> > (N, dt, dev_pos, dev_vel1);
+	checkCUDAErrorWithLine("kernUpdatePos failed!");
 }
 
 void Boids::endSimulation() {
@@ -607,17 +746,18 @@ void Boids::endSimulation() {
   cudaFree(dev_pos);
 
   // TODO-2.1 TODO-2.3 - Free any additional buffers here.
-// cleanup
+  // cleanup
   cudaFree(dev_particleArrayIndices);
   cudaFree(dev_particleGridIndices);
   cudaFree(dev_gridCellStartIndices);
   cudaFree(dev_gridCellEndIndices);
+  cudaFree(dev_pos_shuffle);
+  cudaFree(dev_vel1_shuffle);
   checkCUDAErrorWithLine("cudaFree failed!");
 }
 
 void Boids::unitTest() {
   // LOOK-1.2 Feel free to write additional tests here.
-
   // test unstable sort
   int *dev_intKeys;
   int *dev_intValues;
