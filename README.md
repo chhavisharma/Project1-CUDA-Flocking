@@ -9,14 +9,13 @@ CIS 565: GPU Programming and Architecture**
 ### Index
 
 - [Introduction](https://github.com/chhavisharma/Project1-CUDA-Flocking/blob/master/README.md#introduction)
-- Algorithm
+- [Algorithm](https://github.com/chhavisharma/Project1-CUDA-Flocking/blob/master/README.md#algorithm)
 - Implementations 
   - 1. Naive Boid Simulation
   - 2. Scattered Uniform Grid Search
   - 3. Coherent Uniform Grid Search
 - Performance Analysis
-- Additional Optimizations
-
+- Q&A
 
 ### Introduction
 
@@ -77,7 +76,6 @@ The pseudo code for the detialed algorithm that governs the movement of every bo
 ```
 For the purposes of an interesting simulation, we will say that two boids only influence each other according if they are within a certain neighborhood distance of each other defined by rule1Distance, rule2Distance and rule3Distance. 
 
-
 ### Naive Boid Simulation
 
 In this implementation, for each boid, the full list of boids are searched to select neighbourhood boids for the velocity updates. This approch is not scalable and gets extremely compute intensive as the number of boids in the simulation grow. Relevant statistics are shown in the performance analysis section.  
@@ -104,5 +102,36 @@ We allocate arrays that hold the boid index and the grid index. We then construc
 Then, we can walk over the array of sorted uniform grid indices and look at every pair of values. If the values differ, we know that we are at the border of the representation of two different cells. Storing these locations in cellStartIndex and cellEndIndex arrays gives us o(1) access to all boids resisding in any grid. This process is data parallel and can be naively parallelized.
 
 ![buffers for generating a uniform grid using index sort](images/Boids%20Ugrids%20buffers%20naive.png)
+
+### Coherent Uniform Grid Search
+
+The unifrom grid based search is further optimised by making sure that we have relevant values of position and velocity arrays in our cache by ensuring more hits than misses during memory access. We do this by reshuffling the position and velocity arrays according to the particleArrayIndices after the sorting step in the previous case. Thus, at search time, 
+the indices of grid cells are directly synchronised with position and velocity arrays and we cut out the 'middle man' particleArrayIndices. By rearranging the boid data itself so that all the velocities and positions of boids in one cell are also contiguous in memory, this data can be accessed directly using `dev_gridCellStartIndices` and `dev_gridCellEndIndices` without `dev_particleArrayIndices`.
+
+![buffers for generating a uniform grid using index sort, then making the boid data coherent](images/Boids%20Ugrids%20buffers%20data%20coherent.png).
+
+### Performance Analysis
+Add your performance analysis. Graphs to include:
+- Framerate change with increasing # of boids for naive, scattered uniform grid, and coherent uniform grid (with and without visualization)
+- Framerate change with increasing block size
+
+#### Q&A:
+* For each implementation, how does changing the number of boids affect
+performance? Why do you think this is?
+*
+
+* For each implementation, how does changing the block count and block size
+affect performance? Why do you think this is?
+*
+
+* For the coherent uniform grid: did you experience any performance improvements
+with the more coherent uniform grid? Was this the outcome you expected?
+Why or why not?
+*
+
+* Did changing cell width and checking 27 vs 8 neighboring cells affect performance?
+Why or why not? Be careful: it is insufficient (and possibly incorrect) to say
+that 27-cell is slower simply because there are more cells to check!
+*
 
 
