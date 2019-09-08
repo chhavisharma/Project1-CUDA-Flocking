@@ -89,6 +89,10 @@ int *dev_gridCellEndIndices;   // to this cell?
 glm::vec3 *dev_pos_shuffle;
 glm::vec3 *dev_vel1_shuffle;
 
+cudaEvent_t start, stop;
+
+float milliseconds = 0;
+int milliseccnts = 0;
 // LOOK-2.1 - Grid parameters based on simulation parameters.
 // These are automatically computed for you in Boids::initSimulation
 int gridCellCount;
@@ -171,7 +175,7 @@ void Boids::initSimulation(int N) {
   gridMinimum.z -= halfGridWidth;
 
   // TODO-2.1 TODO-2.3 - Allocate additional buffers here.
-
+  
   cudaMalloc((void**)&dev_gridCellStartIndices, gridCellCount * sizeof(int));
   checkCUDAErrorWithLine("cudaMalloc dev_gridCellStartIndices failed!");
 
@@ -192,6 +196,9 @@ void Boids::initSimulation(int N) {
 
   cudaMalloc((void**)&dev_vel1_shuffle, N * sizeof(glm::vec3));
   checkCUDAErrorWithLine("cudaMalloc dev_vel1_shuffle failed!");
+
+  cudaEventCreate(&start);
+  cudaEventCreate(&stop);
 
   cudaDeviceSynchronize();
 }
@@ -442,31 +449,32 @@ __global__ void kernUpdateVelNeighborSearchScattered(
 		int cnt_pCenter = 0;
 		int cnt_pVel = 0;
 
-		// - Identify which cells may contain neighbors. This isn't always 8.
-		// Checking all 26
-		int x_lim = (int)gird3Didx.x, int y_lim = (int)gird3Didx.y, int z_lim = (int)gird3Didx.z;
-		//printf("gird3Didx %d %d %d \n", x_lim, y_lim, z_lim);
+		//int x_min = (int)gird3Didx.x - 1, int y_min = (int)gird3Didx.y - 1, int z_min = (int)gird3Didx.z -1;
+		//int x_max = (int)gird3Didx.x + 1, int y_max = (int)gird3Didx.y + 1, int z_max = (int)gird3Didx.z +1;
 
-		for (int x = x_lim - 1; x <= x_lim + 1; x++) {
-			for (int y = y_lim - 1; y <= y_lim + 1; y++) {
-				for (int z = z_lim - 1; z <= z_lim + 1; z++) {
+		// variable sphere limit to get candidate cells
+		float maxDistance = imax(imax(rule1Distance, rule2Distance), rule3Distance);
+
+		glm::vec3 gird3D_max = glm::floor((pos[iSelf] - gridMin + maxDistance) * inverseCellWidth);
+		glm::vec3 gird3D_min = glm::floor((pos[iSelf] - gridMin - maxDistance) * inverseCellWidth);
+
+		int x_max = gird3D_max.x; int y_max = (int)gird3D_max.y, int z_max = (int)gird3D_max.z;
+		int x_min = gird3D_min.x; int y_min = (int)gird3D_min.y, int z_min = (int)gird3D_min.z;
+
+		for (int x = x_min; x <= x_max; x++) {
+			for (int y = y_min; y <= y_max; y++) {
+				for (int z = z_min; z <= z_max; z++) {
 					if (x >= 0 && y >= 0 && z >= 0 && x < gridResolution && y < gridResolution && z < gridResolution) {
-						
+
+
 						// - For each cell, read the start/end indices in the boid pointer array.
-						
 						int grid1Didx = gridIndex3Dto1D(x, y, z, gridResolution);
-						
 						int strt_idx = gridCellStartIndices[grid1Didx];
 						int end_idx = gridCellEndIndices[grid1Didx];
-						//printf("iSelf,strt_idx,end_idx %d %d %d \n", iSelf, strt_idx, end_idx);
 
-						if (strt_idx == -1 || end_idx ==-1) continue;
-
-						int grid_boids_cnt = 0;
+						if (strt_idx < 0 || end_idx < 0 || strt_idx >= N || end_idx >= N) continue;
 
 						for (int grid_idx = strt_idx; grid_idx <= end_idx; grid_idx++) {
-							grid_boids_cnt += 1;
-
 							int b = particleArrayIndices[grid_idx];
 								
 							// Rule 1: boids fly towards their local perceived center of mass, which excludes themselves
@@ -474,19 +482,16 @@ __global__ void kernUpdateVelNeighborSearchScattered(
 								pCenter += pos[b];
 								cnt_pCenter += 1;
 							}
-							
 							// Rule 2: boids try to stay a distance d away from each other
 							if (b != iSelf && glm::distance(pos[b], pos[iSelf]) < rule2Distance) {
 								pDist -= (pos[b] - pos[iSelf]);
 							}
-
 							// Rule 3: boids try to match the speed of surrounding boids
 							if (b != iSelf && glm::distance(pos[b], pos[iSelf]) < rule3Distance) {
 								pVel += vel1[b];
 								cnt_pVel += 1;
 							}
 						}
-						//printf("iSelf,strt_idx,end_idx, boids %d %d %d %d \n", iSelf, strt_idx, end_idx, grid_boids_cnt);
 					}
 				}
 			}
@@ -541,19 +546,31 @@ __global__ void kernUpdateVelNeighborSearchCoherent(
 		int cnt_pCenter = 0;
 		int cnt_pVel = 0;
 
-		int x_lim = (int)gird3Didx.x, int y_lim = (int)gird3Didx.y, int z_lim = (int)gird3Didx.z;
+		//int x_min = (int)gird3Didx.x - 1, int y_min = (int)gird3Didx.y - 1, int z_min = (int)gird3Didx.z -1;
+		//int x_max = (int)gird3Didx.x + 1, int y_max = (int)gird3Didx.y + 1, int z_max = (int)gird3Didx.z +1;
 
-		for (int x = x_lim - 1; x <= x_lim + 1; x++) {
-			for (int y = y_lim - 1; y <= y_lim + 1; y++) {
-				for (int z = z_lim - 1; z <= z_lim + 1; z++) {
+		// variable sphere limit to get candidate cells
+		float maxDistance = imax(imax(rule1Distance, rule2Distance), rule3Distance);
+
+		glm::vec3 gird3D_max = glm::floor((pos[iSelf] - gridMin + maxDistance) * inverseCellWidth);
+		glm::vec3 gird3D_min = glm::floor((pos[iSelf] - gridMin - maxDistance) * inverseCellWidth);
+
+		int x_max = gird3D_max.x; int y_max = (int)gird3D_max.y, int z_max = (int)gird3D_max.z;
+		int x_min = gird3D_min.x; int y_min = (int)gird3D_min.y, int z_min = (int)gird3D_min.z;
+		//int CellCheckCounter = 0;
+		
+		for (int x = x_min; x <= x_max; x++) {
+			for (int y = y_min; y <= y_max; y++) {
+				for (int z = z_min; z <= z_max; z++) {
 					if (x >= 0 && y >= 0 && z >= 0 && x < gridResolution && y < gridResolution && z < gridResolution) {
+						//CellCheckCounter += 1;
 
 						// - For each cell, read the start/end indices in the boid pointer array.
 						int grid1Didx = gridIndex3Dto1D(x, y, z, gridResolution);
 						int strt_idx = gridCellStartIndices[grid1Didx];
 						int end_idx = gridCellEndIndices[grid1Didx];
 
-						if (strt_idx == -1 || end_idx == -1 ) continue;
+						if (strt_idx < 0 || end_idx <0 || strt_idx >= N|| end_idx >= N ) continue;
 
 						for (int b = strt_idx; b <= end_idx; b++) {
 
@@ -578,6 +595,8 @@ __global__ void kernUpdateVelNeighborSearchCoherent(
 				}
 			}
 		}
+
+		//printf("iself %d | Cell check counter = %d \n",(iSelf, CellCheckCounter));
 
 		// Accumulated Avg
 		if (cnt_pCenter != 0) {
@@ -629,6 +648,10 @@ __global__ void kernUnShuffleVelPosCoherent(
 void Boids::stepSimulationNaive(float dt) {
 	// TODO-1.2 - use the kernels you wrote to step the simulation forward in time.
 	// Sequentially call both kernels
+
+	// Performace Measurment 
+	//cudaEventRecord(start);
+
 	dim3 fullBlocksPerGrid((numObjects + blockSize - 1) / blockSize);
 
 	kernUpdateVelocityBruteForce <<< fullBlocksPerGrid, blockSize >>> (numObjects, dev_pos, dev_vel1, dev_vel2);
@@ -639,6 +662,19 @@ void Boids::stepSimulationNaive(float dt) {
 
 	// TODO-1.2 ping-pong the velocity buffers
 	dev_vel1 = dev_vel2;
+
+	//// Performace Measurment 
+	//cudaEventRecord(stop);
+
+	//cudaEventSynchronize(stop);
+
+	//float mills = 0.0;
+	//cudaEventElapsedTime(&mills, start, stop);
+
+	//// Running Average
+	//milliseconds = (milliseccnts*milliseconds + mills) / (milliseccnts + 1);
+	//printf("Running Avg Time in milisecond Naive = %f \n", milliseconds);
+
 }
 
 void Boids::stepSimulationScatteredGrid(float dt) {
@@ -650,6 +686,9 @@ void Boids::stepSimulationScatteredGrid(float dt) {
 	// Wrap device vectors in thrust iterators for use with thrust.
 	// - Naively unroll the loop for finding the start and end indices of each
 	//   cell's data pointers in the array of boid indices
+
+	// Performace Measurment 
+	// cudaEventRecord(start);
 
 	int N = numObjects;
 
@@ -682,6 +721,18 @@ void Boids::stepSimulationScatteredGrid(float dt) {
 	checkCUDAErrorWithLine("kernUpdatePos failed!");
 
 	dev_vel1 = dev_vel2;
+
+	// Performace Measurment 
+	//cudaEventRecord(stop);
+
+	//cudaEventSynchronize(stop);
+
+	//float mills = 0.0;
+	//cudaEventElapsedTime(&mills, start, stop);
+
+	// Running Average
+	//milliseconds = (milliseccnts*milliseconds + mills) / (milliseccnts + 1);
+	//if(milliseccnts%10000==0) printf("Time in milisecond Scattered = %f \n", mills);
 }
 
 void Boids::stepSimulationCoherentGrid(float dt) {
@@ -707,6 +758,12 @@ void Boids::stepSimulationCoherentGrid(float dt) {
 
 	dim3 fullBlocksPerGrid((N + blockSize - 1) / blockSize);
 	dim3 cellBlocks((gridCellCount + blockSize - 1) / blockSize);
+
+	// Performace Measurment 
+	//cudaEventRecord(start);
+	//printf("fullBlocksPerGrid %d \n", ((N + blockSize - 1) / blockSize));
+	//printf("blockSize		  %d \n", blockSize);
+
 
 	kernResetIntBuffer << < cellBlocks, blockSize >> > (gridCellCount, dev_gridCellStartIndices, -1);
 	checkCUDAErrorWithLine("kernResetIntBuffer for dev_gridCellStartIndices failed!");
@@ -738,6 +795,18 @@ void Boids::stepSimulationCoherentGrid(float dt) {
 
 	kernUpdatePos << < fullBlocksPerGrid, blockSize >> > (N, dt, dev_pos, dev_vel1);
 	checkCUDAErrorWithLine("kernUpdatePos failed!");
+
+	//// Performace Measurment 
+	//cudaEventRecord(stop);
+
+	//cudaEventSynchronize(stop);
+
+	//float mills= 0.0;
+	//cudaEventElapsedTime(&mills, start, stop);
+	//
+	//// Running Average
+	//milliseconds = (milliseccnts*milliseconds + mills)/( milliseccnts + 1);
+	//printf("Running Avg Time in milisecond Coherent = %f \n", milliseconds);
 }
 
 void Boids::endSimulation() {
