@@ -262,43 +262,40 @@ void Boids::copyBoidsToVBO(float *vbodptr_positions, float *vbodptr_velocities) 
 */
 __device__ glm::vec3 computeVelocityChange(int N, int iSelf, const glm::vec3 *pos, const glm::vec3 *vel) {
 	
-
-	// Rule 1: boids fly towards their local perceived center of mass, which excludes themselves
 	glm::vec3 pCenter(0.0f, 0.0f, 0.0f);
-	int counter = 0;
+	glm::vec3 pDist(0.0f, 0.0f, 0.0f);
+	glm::vec3 pVel(0.0f, 0.0f, 0.0f);
+	int pcounter = 0;
+	int vcounter = 0;
+
 	for (int b = 0; b < N; b++) {
+		
+		// Rule 1: boids fly towards their local perceived center of mass
 		if (b != iSelf && glm::distance(pos[b],pos[iSelf]) < rule1Distance) {
 			pCenter += pos[b];
-			counter += 1;
+			pcounter += 1;
 		}
-	}
-	if (counter != 0) {
-		pCenter /= counter;
-		pCenter = (pCenter - pos[iSelf])*rule1Scale;
-	}
-
-
-	// Rule 2: boids try to stay a distance d away from each other
-	glm::vec3 pDist(0.0f, 0.0f, 0.0f);
-	for (int b = 0; b < N; b++) {
+		// Rule 2: boids try to stay a distance d away from each other
 		if( b != iSelf && glm::distance(pos[b], pos[iSelf]) < rule2Distance) {
 			pDist -= (pos[b] - pos[iSelf]);
 		}
-	}
-	pDist = pDist * rule2Scale;
-
-
-	// Rule 3: boids try to match the speed of surrounding boids
-	glm::vec3 pVel(0.0f, 0.0f, 0.0f);
-	counter = 0;
-	for (int b = 0; b < N; b++) {
+		// Rule 3: boids try to match the speed of surrounding boids
 		if(b != iSelf && glm::distance(pos[b], pos[iSelf]) < rule3Distance) {
 			pVel += vel[b];
-			counter += 1;
+			vcounter += 1;
 		}
 	}
-	if (counter != 0) {
-		pVel /= counter;
+	
+	// Accumuate vlaues
+	if (pcounter != 0) {
+		pCenter /= pcounter;
+		pCenter = (pCenter - pos[iSelf])*rule1Scale;
+	}
+
+	pDist = pDist * rule2Scale;
+
+	if (vcounter != 0) {
+		pVel /= vcounter;
 		pVel = pVel * rule3Scale;
 	}
 	
