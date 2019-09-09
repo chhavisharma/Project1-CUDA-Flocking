@@ -115,6 +115,7 @@ the indices of grid cells are directly synchronised with position and velocity a
 We measure performace by noting the FPS rate on the rendering window and track it with the changes in number of boids and  threads per block for each fo the three approaches described above.
 
 ![Testing Performance](images/200,000Img.png)
+Trying to push the limits of simulation - The figure above shows 200,000 boids being simulated.
 
 1. We compare the change in frame rate with the change in the number of boids in out simulation for all three approaches.
 The trend is shown in the graph below. This test was performed in Release mode with visualizations switched on and Nvidia Verstical Sync switched off.
