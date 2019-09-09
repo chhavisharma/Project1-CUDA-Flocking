@@ -11,7 +11,7 @@ CIS 565: GPU Programming and Architecture**
 - [Introduction](https://github.com/chhavisharma/Project1-CUDA-Flocking/blob/master/README.md#introduction)
 - [Algorithm](https://github.com/chhavisharma/Project1-CUDA-Flocking/blob/master/README.md#algorithm)
 - Implementations 
-  - 1. [Naive Boid Simulation]()
+  - 1. [Naive Boid Simulation](https://github.com/chhavisharma/Project1-CUDA-Flocking/blob/master/README.md#naive-boid-simulation)
   - 2. [Boid Simulation with Scattered Uniform Grid Search](https://github.com/chhavisharma/Project1-CUDA-Flocking/blob/master/README.md#scattered-uniform-grid-search)
   - 3. [Boid Simulation with Coherent Uniform Grid Search](https://github.com/chhavisharma/Project1-CUDA-Flocking/blob/master/README.md#coherent-uniform-grid-search)
 - [Performance Analysis](https://github.com/chhavisharma/Project1-CUDA-Flocking/blob/master/README.md#performance-analysis)
