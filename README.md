@@ -6,7 +6,7 @@ CIS 565: GPU Programming and Architecture**
 * Tested on: Windows 10, Intel Core(R) Core(TM) i7-6700 CPU @ 3.40GHz 16GB, 
              NVIDIA Quadro P1000 4GB (MOORE100B-06)
 
-![FLOCKING SIMULATION](images/FInalGIF.gif)
+![FLOCKING SIMULATION](images/FInalGIF2.gif)
 
 ### Index
 
