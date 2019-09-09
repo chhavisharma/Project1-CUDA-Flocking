@@ -11,11 +11,11 @@ CIS 565: GPU Programming and Architecture**
 - [Introduction](https://github.com/chhavisharma/Project1-CUDA-Flocking/blob/master/README.md#introduction)
 - [Algorithm](https://github.com/chhavisharma/Project1-CUDA-Flocking/blob/master/README.md#algorithm)
 - Implementations 
-  - 1. Naive Boid Simulation
-  - 2. Scattered Uniform Grid Search
-  - 3. Coherent Uniform Grid Search
-- Performance Analysis
-- Q&A
+  - 1. [Naive Boid Simulation]()
+  - 2. [Boid Simulation with Scattered Uniform Grid Search]()
+  - 3. [Boid Simulation with Coherent Uniform Grid Search]()
+- [Performance Analysis]()
+- [Q&A]()
 
 ### Introduction
 
@@ -105,15 +105,31 @@ Then, we can walk over the array of sorted uniform grid indices and look at ever
 
 ### Coherent Uniform Grid Search
 
-The unifrom grid based search is further optimised by making sure that we have relevant values of position and velocity arrays in our cache by ensuring more hits than misses during memory access. We do this by reshuffling the position and velocity arrays according to the particleArrayIndices after the sorting step in the previous case. Thus, at search time, 
+The unifrom grid based search is further optimised by making sure that we have relevant values of position and velocity arrays in our cache which ensures more hits than misses during memory access. We do this by reshuffling the position and velocity arrays according to the particleArrayIndices after the sorting step in the previous case. Thus, at search time, 
 the indices of grid cells are directly synchronised with position and velocity arrays and we cut out the 'middle man' particleArrayIndices. By rearranging the boid data itself so that all the velocities and positions of boids in one cell are also contiguous in memory, this data can be accessed directly using `dev_gridCellStartIndices` and `dev_gridCellEndIndices` without `dev_particleArrayIndices`.
 
 ![buffers for generating a uniform grid using index sort, then making the boid data coherent](images/Boids%20Ugrids%20buffers%20data%20coherent.png).
 
 ### Performance Analysis
-Add your performance analysis. Graphs to include:
-- Framerate change with increasing # of boids for naive, scattered uniform grid, and coherent uniform grid (with and without visualization)
-- Framerate change with increasing block size
+1. We compare the change in frame rate with the change in the number of boids in out simulation for all three approaches.
+The trend is shown in the graph below. This test was performed in Release mode with visualizations switched on and Nvidia Verstical Sync switched off.
+![FPS v/s NumberOfBoids with Release mode, No Vertical Sync]
+()
+
+2. We compare the change in frame rate with the change in the number of boids in out simulation for all three approaches.
+The trend is shown in the graph below. This test was performed in Release mode with visualizations switched off and Nvidia Verstical Sync switched off.
+
+![FPS v/s NumberOfBoids - Release mode, No Visualization, No Vertical Sync](images/fps_vs_boids_all3.png)
+
+3.We the plot the fps change as we increase the number of threads in each block. This test was performed on the Coherent implementation in Release mode with visualizations switched on and Nvidia Verstical Sync switched off.
+
+![FPS v/s NumberOfThreadsPerFrame - Release mode, No Visualization, No Vertical Sync](images/coherent_threadsPerBlock_vs_fps_new.png)
+
+4. We also plot the fps change as we switch the cell with from 2*neighbourhoodDistance to 1*neighbourhoodDistance. This test was performed in Release mode with visualizations switched off and Nvidia Verstical Sync switched off.
+
+Scattered                            |  Coherent
+:-----------------------------------:|:-----------------------------------:
+![](images/scattered_cw_vs_fps.png)  |  ![](images/coherent_cw_vs_fps.png)
 
 #### Q&A:
 * For each implementation, how does changing the number of boids affect
