@@ -6,6 +6,8 @@ CIS 565: GPU Programming and Architecture**
 * Tested on: Windows 10, Intel Core(R) Core(TM) i7-6700 CPU @ 3.40GHz 16GB, 
              NVIDIA Quadro P1000 4GB (MOORE100B-06)
 
+![FLOCKING SIMULATION]()
+
 ### Index
 
 - [Introduction](https://github.com/chhavisharma/Project1-CUDA-Flocking/blob/master/README.md#introduction)
@@ -80,8 +82,6 @@ For the purposes of an interesting simulation, we will say that two boids only i
 
 In this implementation, for each boid, the full list of boids are searched to select neighbourhood boids for the velocity updates. This approch is not scalable and gets extremely compute intensive as the number of boids in the simulation grow. Relevant statistics are shown in the performance analysis section.  
 
-[Possible slow GIF]
-
 ### Scattered Uniform Grid Search
 
 To speedup the search over neighbouring boids, the simulation space is discretised into girds (cuboids in 3D) and boids are assigned to these grids. Now, at the velocity update step, it is faster to resolve the neighbouring grids based on the rules and then check their residing boids for the velocity computation. 
@@ -112,29 +112,37 @@ the indices of grid cells are directly synchronised with position and velocity a
 
 ### Performance Analysis
 
+We measure performace by noting the FPS rate on the rendering window and track it with the changes in number of boids and  threads per block for each fo the three approaches described above.
+
+![Testing Performance](images/200,000Img.png)
+
 1. We compare the change in frame rate with the change in the number of boids in out simulation for all three approaches.
 The trend is shown in the graph below. This test was performed in Release mode with visualizations switched on and Nvidia Verstical Sync switched off.
-**Analysis**
 
 ![FPS v/s NumberOfBoids with Release mode, No Vertical Sync, with Visualization](images/Updated_Boids_vs_FPS_VIZ.png)
 
+As the numbe of boids grow the fps reduces since the velocity updates end up having more boids in the neighbourhood of every boid. More boids per cell over all result in higher compute and lower fps. 
+
 2. We compare the change in frame rate with the change in the number of boids in out simulation for all three approaches.
 The trend is shown in the graph below. This test was performed in Release mode with visualizations switched off and Nvidia Verstical Sync switched off.
-**Analysis**
 
 ![FPS v/s NumberOfBoids - Release mode, No Visualization, No Vertical Sync](images/Updated_Boids_vs_FPS_NOVIZ.png)
 
+The difference betwen this and the previous case is that the visualization was switched off while comuputing these numbers. As a result, the computational fps is not limited by the rendering and we se hiked numbers. 
+
 3.We the plot the fps change as we increase the number of threads in each block. This test was performed on the Coherent implementation in Release mode with visualizations switched on and Nvidia Verstical Sync switched off.
-**Analysis**
 
 ![FPS v/s NumberOfThreadsPerFrame - Release mode, No Visualization, No Vertical Sync](images/Updated_threadsPerBlock_vs_fps.png)
 
+We notice that there is hardly any change in performance as we increase threads per block. This is because the corresponding block count is reduced as threads are increased```fullBlocksPerGrid = (N + blockSize - 1) / blockSize ```.
+
 4. We also plot the fps change as we switch the cell with from 2*neighbourhoodDistance to 1*neighbourhoodDistance for 100,000 BOids. This test was performed in Release mode with visualizations switched off and Nvidia Verstical Sync switched off.
-**Analysis**
 
 Scattered (100000 Boids)             |  Coherent (100000 Boids) 
 :-----------------------------------:|:-----------------------------------:
 ![](images/Updated_scattered_cw_vs_fps.png)  |  ![](images/Updated_coherent_cw_vs_fps.png)
+
+We see that the case where the cellwidth is equal to Neighbourhood distance (27 cell case) is performing slightly better than the 8-cell case (cell width == 2* Neighbourhood distance) for 100000 Boids. We note that in this particular case checking more number of cells does not reduce perfromce as the number of boids may be less per cell. 
 
 
 #### Q&A:
@@ -149,5 +157,5 @@ Scattered (100000 Boids)             |  Coherent (100000 Boids)
 We do notice that there is a decline in fps for lower boid counts (see boidCount=5k). This is because the overhead of shuffling vel and pos arrays is more than the caching benifit we get from it possibly due to the small size of the number of boids. 
 
 * **Did changing cell width and checking 27 vs 8 neighboring cells affect performance? Why or why not? Be careful: it is insufficient (and possibly incorrect) to say that 27-cell is slower simply because there are more cells to check!**
-* In our particlar experiment in the plots, the case where 27 cells are checked (cell width == Neighbourhood distance) is performing slightly better than the 8-cell case (cell width == 2* Neighbourhood distance) for 100000 Boids. Too large or too small cell width defetas the purpose of discretisation. Really largest cell width could encompass the entire space and give us the naive case, and, really small cell width would give us cell count ~= boid count and again give us the naive case. There has to be a balance between cell width and the neighbourhoodDistance such that the appropriate number of cells are checked. Therfore it is difficult to pick a case that should performe better. 
+* In our particlar experiment in the plots, the case where 27 cells are checked (cell width == Neighbourhood distance) is performing slightly better than the 8-cell case (cell width == 2* Neighbourhood distance) for 100000 Boids. We note that in this particular case checking more number of cells does not reduce perfromce as the number of boids may be less per cell. Too large or too small cell width defetas the purpose of discretisation. Really largest cell width could encompass the entire space and give us the naive case, and, really small cell width would give us cell count ~= boid count and again give us the naive case. There has to be a balance between cell width and the neighbourhoodDistance such that the appropriate number of cells are checked. Therfore it is difficult to pick a case that should performe better. 
 
