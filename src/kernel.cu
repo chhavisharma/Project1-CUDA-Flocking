@@ -446,8 +446,8 @@ __global__ void kernUpdateVelNeighborSearchScattered(
 		int cnt_pCenter = 0;
 		int cnt_pVel = 0;
 
-		//int x_min = (int)gird3Didx.x - 1, int y_min = (int)gird3Didx.y - 1, int z_min = (int)gird3Didx.z -1;
-		//int x_max = (int)gird3Didx.x + 1, int y_max = (int)gird3Didx.y + 1, int z_max = (int)gird3Didx.z +1;
+		//int x_min = (int)gird3Didx.x - 1, int y_min = (int)gird3Didx.y - 1; int z_min = (int)gird3Didx.z -1;
+		//int x_max = (int)gird3Didx.x + 1, int y_max = (int)gird3Didx.y + 1; int z_max = (int)gird3Didx.z +1;
 
 		// variable sphere limit to get candidate cells
 		float maxDistance = imax(imax(rule1Distance, rule2Distance), rule3Distance);
@@ -552,8 +552,8 @@ __global__ void kernUpdateVelNeighborSearchCoherent(
 		glm::vec3 gird3D_max = glm::floor((pos[iSelf] - gridMin + maxDistance) * inverseCellWidth);
 		glm::vec3 gird3D_min = glm::floor((pos[iSelf] - gridMin - maxDistance) * inverseCellWidth);
 
-		int x_max = gird3D_max.x; int y_max = (int)gird3D_max.y, int z_max = (int)gird3D_max.z;
-		int x_min = gird3D_min.x; int y_min = (int)gird3D_min.y, int z_min = (int)gird3D_min.z;
+		int x_max = gird3D_max.x; int y_max = (int)gird3D_max.y; int z_max = (int)gird3D_max.z;
+		int x_min = gird3D_min.x; int y_min = (int)gird3D_min.y; int z_min = (int)gird3D_min.z;
 		//int CellCheckCounter = 0;
 		
 		for (int x = x_min; x <= x_max; x++) {
