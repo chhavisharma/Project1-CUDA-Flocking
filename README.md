@@ -6,7 +6,7 @@ CIS 565: GPU Programming and Architecture**
 * Tested on: Windows 10, Intel Core(R) Core(TM) i7-6700 CPU @ 3.40GHz 16GB, 
              NVIDIA Quadro P1000 4GB (MOORE100B-06)
 
-![FLOCKING SIMULATION]()
+![FLOCKING SIMULATION](images/FInalGIF.gif)
 
 ### Index
 
@@ -23,7 +23,7 @@ CIS 565: GPU Programming and Architecture**
 
 This repository presents a CUDA accelerated implemtation of the [boids algorithm](https://en.wikipedia.org/wiki/Boids), developed by Craig Reynolds in 1986, which simulates the flocking behaviour of animals such as birds or fishes. Three versions of implementations with increasing levles of search optimization are shown: A naive search over all the neighbours, a scattered uniform grid search and a coherent unifrom grid search. 
 
-An example of the resultant movement is shown below:
+An example of the resultant movement is shown below. Here, we try to simulate 200,000 boids using coherent uniform grid search optimization.
 <p align="center">
   <img width="400" height="300" src="images/GIF_380.6_fps_Boids_SM_7.0_TITANV.gif">
 </p>
