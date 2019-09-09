@@ -286,7 +286,7 @@ __device__ glm::vec3 computeVelocityChange(int N, int iSelf, const glm::vec3 *po
 		}
 	}
 	
-	// Accumuate vlaues
+	// Accumuate values
 	if (pcounter != 0) {
 		pCenter /= pcounter;
 		pCenter = (pCenter - pos[iSelf])*rule1Scale;
