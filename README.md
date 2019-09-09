@@ -12,10 +12,10 @@ CIS 565: GPU Programming and Architecture**
 - [Algorithm](https://github.com/chhavisharma/Project1-CUDA-Flocking/blob/master/README.md#algorithm)
 - Implementations 
   - 1. [Naive Boid Simulation]()
-  - 2. [Boid Simulation with Scattered Uniform Grid Search]()
-  - 3. [Boid Simulation with Coherent Uniform Grid Search]()
-- [Performance Analysis]()
-- [Q&A]()
+  - 2. [Boid Simulation with Scattered Uniform Grid Search](https://github.com/chhavisharma/Project1-CUDA-Flocking/blob/master/README.md#scattered-uniform-grid-search)
+  - 3. [Boid Simulation with Coherent Uniform Grid Search](https://github.com/chhavisharma/Project1-CUDA-Flocking/blob/master/README.md#coherent-uniform-grid-search)
+- [Performance Analysis](https://github.com/chhavisharma/Project1-CUDA-Flocking/blob/master/README.md#performance-analysis)
+- [Q&A](https://github.com/chhavisharma/Project1-CUDA-Flocking/blob/master/README.md#qa)
 
 ### Introduction
 
@@ -108,9 +108,10 @@ Then, we can walk over the array of sorted uniform grid indices and look at ever
 The unifrom grid based search is further optimised by making sure that we have relevant values of position and velocity arrays in our cache which ensures more hits than misses during memory access. We do this by reshuffling the position and velocity arrays according to the particleArrayIndices after the sorting step in the previous case. Thus, at search time, 
 the indices of grid cells are directly synchronised with position and velocity arrays and we cut out the 'middle man' particleArrayIndices. By rearranging the boid data itself so that all the velocities and positions of boids in one cell are also contiguous in memory, this data can be accessed directly using `dev_gridCellStartIndices` and `dev_gridCellEndIndices` without `dev_particleArrayIndices`.
 
-![buffers for generating a uniform grid using index sort, then making the boid data coherent](images/Boids%20Ugrids%20buffers%20data%20coherent.png).
+![buffers for generating a uniform grid using index sort, then making the boid data coherent](images/Boids%20Ugrids%20buffers%20data%20coherent.png)
 
 ### Performance Analysis
+
 1. We compare the change in frame rate with the change in the number of boids in out simulation for all three approaches.
 The trend is shown in the graph below. This test was performed in Release mode with visualizations switched on and Nvidia Verstical Sync switched off.
 **Analysis**
@@ -149,6 +150,5 @@ Scattered (100000 Boids)             |  Coherent (100000 Boids)
 We do notice that there is a decline in fps for lower boid counts (see boidCount=5k). This is because the overhead of shuffling vel and pos arrays is more than the caching benifit we get from it possibly due to the small size of the number of boids. 
 
 * **Did changing cell width and checking 27 vs 8 neighboring cells affect performance? Why or why not? Be careful: it is insufficient (and possibly incorrect) to say that 27-cell is slower simply because there are more cells to check!**
-*
-As mentioned earlier, too large or too small cell width defetas the purpose of discretisation. Really largest cell width could encompass the entire space and give us the naive case, and, really small cell width would give us cell count ~= boid count and again give us the naive case. There has to be a balance between cell width and the neighbourhoodDistance such that the appropriate number of cells are checked. Therfore it is difficult to pick a case that should performe better. In our particlar experiment in the plots, the case where 27 cells are checked (cell width == Neighbourhood distance) is performing slightly better than the 8-cell case (cell width == 2* Neighbourhood distance) for 100000 Boids.
+* In our particlar experiment in the plots, the case where 27 cells are checked (cell width == Neighbourhood distance) is performing slightly better than the 8-cell case (cell width == 2* Neighbourhood distance) for 100000 Boids. Too large or too small cell width defetas the purpose of discretisation. Really largest cell width could encompass the entire space and give us the naive case, and, really small cell width would give us cell count ~= boid count and again give us the naive case. There has to be a balance between cell width and the neighbourhoodDistance such that the appropriate number of cells are checked. Therfore it is difficult to pick a case that should performe better. 
 
