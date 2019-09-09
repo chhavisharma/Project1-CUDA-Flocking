@@ -116,26 +116,25 @@ the indices of grid cells are directly synchronised with position and velocity a
 The trend is shown in the graph below. This test was performed in Release mode with visualizations switched on and Nvidia Verstical Sync switched off.
 **Analysis**
 
-![FPS v/s NumberOfBoids with Release mode, No Vertical Sync]
-()
+![FPS v/s NumberOfBoids with Release mode, No Vertical Sync, with Visualization](images/Updated_Boids_vs_FPS_VIZ.png)
 
 2. We compare the change in frame rate with the change in the number of boids in out simulation for all three approaches.
 The trend is shown in the graph below. This test was performed in Release mode with visualizations switched off and Nvidia Verstical Sync switched off.
 **Analysis**
 
-![FPS v/s NumberOfBoids - Release mode, No Visualization, No Vertical Sync](images/fps_vs_boids_all3.png)
+![FPS v/s NumberOfBoids - Release mode, No Visualization, No Vertical Sync](images/Updated_Boids_vs_FPS_NOVIZ.png)
 
 3.We the plot the fps change as we increase the number of threads in each block. This test was performed on the Coherent implementation in Release mode with visualizations switched on and Nvidia Verstical Sync switched off.
 **Analysis**
 
-![FPS v/s NumberOfThreadsPerFrame - Release mode, No Visualization, No Vertical Sync](images/coherent_threadsPerBlock_vs_fps_new.png)
+![FPS v/s NumberOfThreadsPerFrame - Release mode, No Visualization, No Vertical Sync](images/Updated_threadsPerBlock_vs_fps.png)
 
 4. We also plot the fps change as we switch the cell with from 2*neighbourhoodDistance to 1*neighbourhoodDistance for 100,000 BOids. This test was performed in Release mode with visualizations switched off and Nvidia Verstical Sync switched off.
 **Analysis**
 
 Scattered (100000 Boids)             |  Coherent (100000 Boids) 
 :-----------------------------------:|:-----------------------------------:
-![](images/scattered_cw_vs_fps.png)  |  ![](images/coherent_cw_vs_fps.png)
+![](images/Updated_scattered_cw_vs_fps.png)  |  ![](images/Updated_coherent_cw_vs_fps.png)
 
 
 #### Q&A:
